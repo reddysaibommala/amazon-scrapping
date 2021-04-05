@@ -80,6 +80,7 @@ const checkCache = (req, res, next) => {
       .then((details) => {
         let { product = {} } = res.locals || {};
         product.technicalDetails = details.technicalDetails;
+        product.pdf = details.pdf;
         res.send(product);
       })
       .catch(next);
@@ -124,9 +125,11 @@ router.get(
     scrapeProduct(product.productURL, asinId)
     .then((productInfo) => {
       product.technicalDetails = productInfo[asinId];
+      product.pdf = productInfo.pdf;
       return Details.create({
         asinId: asinId,
-        technicalDetails: productInfo[asinId]
+        technicalDetails: productInfo[asinId],
+        pdf: productInfo.pdf
       })
     })
     .then((response) => {

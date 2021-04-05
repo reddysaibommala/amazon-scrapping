@@ -6,6 +6,7 @@ let DetailsSchema = new mongoose.Schema({
     auto: true
   },
   asinId: String,
+  pdf: String,
   technicalDetails: Object
 }, {
   timestamps: true,

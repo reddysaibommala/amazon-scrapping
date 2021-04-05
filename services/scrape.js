@@ -1,4 +1,13 @@
 const puppeteer = require('puppeteer');
+const aws = require('aws-sdk');
+
+aws.config.update({
+  secretAccessKey: process.env.AWS_SECRETKEY,
+  accessKeyId: process.env.AWS_ACCESSKEY,
+  region: process.env.AWS_REGION_NAME
+});
+
+const s3 = new aws.S3();
 
 const url = 'https://www.amazon.in/s';
 browser = null;
@@ -58,28 +67,46 @@ async function scrapeProductData(url, asinId) {
 }
 
 async function checkProduct(page, asinId) {
-    await page.reload();
-    await page.waitForSelector('#prodDetails > div > div:nth-child(1) > div:nth-child(1) > div')
-    let product = await page.evaluate((sel, asinId) => {
-      let elementArray = [];
-      let dataObj = {};
-      dataObj[asinId] = {};
-      let docs =  document.querySelectorAll('#productDetails_techSpec_section_1 > tbody > tr')
-      for(let divI = 0; divI<docs.length;divI++){
-        elementArray.push(docs[divI])
+  await page.reload();
+  await page.waitForSelector('#prodDetails > div > div:nth-child(1) > div:nth-child(1) > div')
+  const dom = await page.$eval('#prodDetails > div > div:nth-child(1) > div:nth-child(1) > div', (elem) => {
+    return elem.innerHTML;
+  })
+  await page.setContent(dom);
+  const buffer = await page.pdf({
+    format: 'A4'
+  });
+  const params = {
+    ACL: 'public-read',
+    Body: Buffer.from(buffer),
+    Bucket: process.env.AWS_BUCKET_NAME,
+    ContentType: "application/pdf",
+    ContentDisposition: 'inline',
+    Key: `${process.env.AWS_DIRECTORY_PATH}/${asinId}.pdf`,
+  }
+
+  let data = await s3.upload(params).promise();
+  let product = await page.evaluate((sel, asinId) => {
+    let elementArray = [];
+    let dataObj = {};
+    dataObj[asinId] = {};
+    let docs =  document.querySelectorAll('#productDetails_techSpec_section_1 > tbody > tr')
+    for(let divI = 0; divI<docs.length;divI++){
+      elementArray.push(docs[divI])
+    }
+    let promise = new Promise((resolve,reject) =>{
+      for(let text = 0; text < elementArray.length; text++){
+        let key = elementArray[text].querySelector('#productDetails_techSpec_section_1 > tbody > tr > th') ? elementArray[text].querySelector('#productDetails_techSpec_section_1 > tbody > tr > th').innerText : '';
+        let val = elementArray[text].querySelector('#productDetails_techSpec_section_1 > tbody > tr > td') ? elementArray[text].querySelector('#productDetails_techSpec_section_1 > tbody > tr > td').innerText : '';
+        dataObj[asinId][key] = val;
+
+        resolve(dataObj)
       }
-      let promise = new Promise((resolve,reject) =>{
-        for(let text = 0; text < elementArray.length; text++){
-          let key = elementArray[text].querySelector('#productDetails_techSpec_section_1 > tbody > tr > th') ? elementArray[text].querySelector('#productDetails_techSpec_section_1 > tbody > tr > th').innerText : '';
-          let val = elementArray[text].querySelector('#productDetails_techSpec_section_1 > tbody > tr > td') ? elementArray[text].querySelector('#productDetails_techSpec_section_1 > tbody > tr > td').innerText : '';
-          dataObj[asinId][key] = val;
-          
-          resolve(dataObj)
-        }
-      })
-      return promise;
-    }, '#productDetails_techSpec_section_1', asinId)
-    return product;
+    })
+    return promise;
+  }, '#productDetails_techSpec_section_1', asinId)
+  product.pdf = data.Location;
+  return product;
 }
 
 async function scrapeProducts(key) {
