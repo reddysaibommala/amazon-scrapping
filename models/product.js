@@ -12,8 +12,7 @@ let ProductSchema = new mongoose.Schema({
   price: String,
   strike: String,
   rating: String,
-  offer: String,
-  technicalDetails: Object
+  offer: String
 }, {
   timestamps: true,
   toJSON: { getters: true },

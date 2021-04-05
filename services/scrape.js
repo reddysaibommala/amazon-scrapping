@@ -11,7 +11,7 @@ async function getDriver() {
   return browser
 }
 
-async function scrapeProducts(url) {
+async function scrapeProductsData(url) {
   const page = await browser.newPage();
   page.setDefaultNavigationTimeout(0);
   await page.goto(url,{waitUntil: 'load'});
@@ -49,7 +49,7 @@ async function checkProducts(page) {
   return products;
 }
 
-async function scrapeProduct(url, asinId) {
+async function scrapeProductData(url, asinId) {
   const page = await browser.newPage();
   page.setDefaultNavigationTimeout(0);
   await page.goto(url,{waitUntil: 'load'});
@@ -80,6 +80,27 @@ async function checkProduct(page, asinId) {
       return promise;
     }, '#productDetails_techSpec_section_1', asinId)
     return product;
+}
+
+async function scrapeProducts(key) {
+  let products = [];
+  process.setMaxListeners(0);
+  browser = await getDriver();
+  for (let page = 1; page <= 2; page++) {
+    const productsUrl = `${url}?k=${key}&page=${page}`;
+    let data = await scrapeProductsData(productsUrl);
+    products = products.concat(data);
+  }
+  browser.close();
+  return products;
+}
+
+async function scrapeProduct(url, asinId) {
+  process.setMaxListeners(0);
+  browser = await getDriver();
+  let productDetails = await scrapeProductData(url, asinId)
+  browser.close();
+  return productDetails;
 }
 
 async function scrape(key) {
@@ -119,5 +140,6 @@ async function scrape(key) {
 }
 
 module.exports = {
-  scrape: scrape
+  scrapeProducts: scrapeProducts,
+  scrapeProduct: scrapeProduct
 }
